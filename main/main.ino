@@ -22,9 +22,13 @@
 
 
 #include <SimpleModbusMaster.h>
+#include <SPI.h>
+#include <SD.h>
 #include "sim900.h"     
-#include "serverConfg.h"          
+#include "serverConfg.h"  
+#include "sdcardConfig.h"        
 
+//File myFile1;
 sim900_GPRS myGateway;    // Gateway object
 
 #define baud 9600
@@ -35,6 +39,8 @@ sim900_GPRS myGateway;    // Gateway object
 #define TxEnablePin 2 
 
 #define LED 13
+const uint8_t ChipSelect = 10 ;   //SD Card ChipSelect pin. Dont Change
+
 
 #define TOTAL_NO_OF_REGISTERS 33        // Control Panel Resisters = 17 , Energy Meter Resisters = 16
 
@@ -82,11 +88,14 @@ void setup()
   
   modbus_configure(&Serial2, baud, SERIAL_8N1, timeout, polling, retry_count, TxEnablePin, packets, TOTAL_NO_OF_PACKETS, regs);
   delay(100);
-  pinMode(LED, OUTPUT);
+  //pinMode(LED, OUTPUT);
 
   // Setup GSM Module 
   Serial1.begin(9600);   // To connect SIM900A and send AT Commands
   myGateway.power_on();            // POWER ON GSM Module for communication 
+
+/************** SD Card Init/Startup Code ***********************/
+ isSDCardCheck("chiller.csv");     //provide a File Name to Store log of ModBus Devices
 
   
 }
@@ -106,14 +115,14 @@ void loop()
   volatile uint8_t ac_Volt = regs[4];
   volatile float compressor_Current = regs[5]/10.0;
   volatile float pump_Current = regs[6]/10.0;
-  volatile uint8_t charg_pump_Relay = regs[7];
-  volatile uint8_t condensor_Relay = regs[8];
-  volatile uint8_t compressor_Relay = regs[9];
-  volatile uint8_t inverter_Relay = regs[10];
-  volatile uint8_t agitator_Relay = regs[11];
-  volatile uint8_t tank_Relay = regs[12];
-  volatile uint8_t shiva_Relay = regs[13];
-  volatile uint8_t discharge_pump_Relay = regs[14];
+  volatile boolean charg_pump_Relay = regs[7];
+  volatile boolean condensor_Relay = regs[8];
+  volatile boolean compressor_Relay = regs[9];
+  volatile boolean inverter_Relay = regs[10];
+  volatile boolean agitator_Relay = regs[11];
+  volatile boolean tank_Relay = regs[12];
+  volatile boolean shiva_Relay = regs[13];
+  volatile boolean discharge_pump_Relay = regs[14];
   volatile uint32_t compressor_run_Hour = regs[16];
      
   Serial.print("Battery Temp.: ");Serial.println(battery_Temp,DEC);
@@ -164,6 +173,17 @@ void loop()
   float powerConsump = myGateway.hextofloat(regs[27],regs[28]);
   float deviceRunHr = myGateway.hextofloat(regs[29],regs[30]);
   float powerAvailable = myGateway.hextofloat(regs[31],regs[32]);
+
+/* *********  Log Data to SD Card *********************************/
+  String data = "";
+  volatile int SrNo = 1;
+  //myFile1 = SD.open("chiller.csv", FILE_WRITE);
+
+ writetoSDCard ("chiller.csv",FILE_WRITE ,SrNo, 2, battery_Temp, milk_Temp, auxillary_Temp, battery_Volt, ac_Volt, compressor_Current, pump_Current,
+                 charg_pump_Relay, condensor_Relay, compressor_Relay, inverter_Relay, agitator_Relay,tank_Relay, shiva_Relay, discharge_pump_Relay,compressor_run_Hour );
+
+  
+  SrNo++;
   
   float emarray[] = {lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable };
   for(int i=0;i<8;i++)
@@ -176,47 +196,50 @@ void loop()
   delay(5000); 
   /******************** Milk Chiller Temp Data Uploading *****************************/
   int stime = millis();
-  myGateway.updateThinkSpeak(channel_apiKey[0],1,2,3,4,battery_Temp,milk_Temp,auxillary_Temp,battery_Volt);    //update Milk Chiller Channel 1 - 4 fields
+  myGateway.updateThinkSpeak(channel_apiKey[0],1,2,3,4,battery_Temp,milk_Temp,auxillary_Temp,battery_Volt,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);    //update Milk Chiller Channel 1 - 4 fields
   Serial.print("Chiller 1-4 Time Taken :");Serial.println(millis() - stime );
   delay(200);
-  int s1time = millis();
-  myGateway.updateThinkSpeak(channel_apiKey[0],5,6,7,8,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);    //update Milk Chiller Channel field 5 -8
-  Serial.print("Chiller 5 -8 Time Taken :");Serial.println(millis() - s1time );
-  delay(200);
+  //int s1time = millis();
+  //myGateway.updateThinkSpeak(channel_apiKey[0],5,6,7,8,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);    //update Milk Chiller Channel field 5 -8
+  //Serial.print("Chiller 5 -8 Time Taken :");Serial.println(millis() - s1time );
+  //delay(200);
 
  /****************** Milk Chiller Relays Data Uploading ***************************/ 
   int s2time = millis();
   //myGateway.updateMilkChillerRelays(channel_apiKey[1],charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay );   // pass the parameters of milkChiller Relay fields 1 - 4
-  myGateway.updateThinkSpeak(channel_apiKey[1],1,2,3,4,charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay);    //update Milk Chiller Relays Channel field 1 -4
+  
+  myGateway.updateThinkSpeak(channel_apiKey[1],1,2,3,4,charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 1 -4
   Serial.print("Chiller Relays 1-8 Time Taken :");Serial.println(millis() - s2time );
   delay(200);
  
-  int s3time = millis();
-  myGateway.updateThinkSpeak(channel_apiKey[1],5,6,7,8,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 5 - 8
-  Serial.print("Chiller Relays 1-8 Time Taken :");Serial.println(millis() - s3time );
-  delay(200);
+  //int s3time = millis();
+  //myGateway.updateThinkSpeak(channel_apiKey[1],5,6,7,8,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 5 - 8
+  //Serial.print("Chiller Relays 1-8 Time Taken :");Serial.println(millis() - s3time );
+  //delay(200);
   
 /*********************** Energy Meter Uploaing ****************************************/  
   int s4time = millis();
-  myGateway.updateThinkSpeak(channel_apiKey[2],1,2,3,4,lineVolts,lineCurrent,deviceVolts,deviceCurrent);                  //update Energy meter 1 - 4 fields
+  myGateway.updateThinkSpeak(channel_apiKey[2],1,2,3,4,lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable);                  //update Energy meter 1 - 4 fields
   Serial.print("Energy Meter 1-4 Time Taken :");Serial.println(millis() - s4time );
   delay(200);
   
-  int s5time = millis();
-  myGateway.updateThinkSpeak(channel_apiKey[2],5,6,7,8,power,powerConsump/1000,deviceRunHr,powerAvailable);               // Energy Meter 5 - 8 fields
-  Serial.print("Energy Meter 5 - 8 Time Taken :");Serial.println(millis() - s5time );
-  
-  /*myGateway.updateThinkSpeak(channel_apiKey[2],1,2,3,4,lineVolts,lineCurrent,deviceVolts,deviceCurrent);                  //update Energy meter 1 - 4 fields  
-    myGateway.updateThinkSpeak(channel_apiKey[0],1,2,3,4,100.79,20.70,30.20,40.40);
-    delay(1000);
-    myGateway.updateThinkSpeak(channel_apiKey[1],);                  //update Energy meter 1 - 4 fields  
-    delay(500);
+ // int s5time = millis();
+ // myGateway.updateThinkSpeak(channel_apiKey[2],5,6,7,8,power,powerConsump/1000,deviceRunHr,powerAvailable);               // Energy Meter 5 - 8 fields
+ // Serial.print("Energy Meter 5 - 8 Time Taken :");Serial.println(millis() - s5time );
+
+ 
+    //myGateway.updateThinkSpeak(channel_apiKey[2],1,2,3,4,lineVolts,lineCurrent,deviceVolts,deviceCurrent);                  //update Energy meter 1 - 4 fields  
+  //  myGateway.updateThinkSpeak(channel_apiKey[0],1,2,3,4,100.79,20.70,30.20,440.40,4551.1545,87785.166,98544.4661,444551.1541);
+ //   delay(1000);
+    //myGateway.updateThinkSpeak(channel_apiKey[0],5,6,7,8,99999.1453,123456.4463,448454,763313.046);                  //update Energy meter 1 - 4 fields  
+    //delay(500);
     
    //myGateway.updateThinkSpeak(channel_apiKey[2],5,6,7,8,power,powerConsump/1000,deviceRunHr,powerAvailable);                    //update Energy meter 5 - 8 fields
   //myGateway.updateThinkSpeak(channel_apiKey[2],5,6,7,8,41.1,912.24,901.14,9999);                                                //update Energy meter 5 - 8 fields
-    */
+   
   Serial.println("**** done ****");
   delay(200);
  
 }
+
 
