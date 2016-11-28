@@ -1,5 +1,6 @@
 #include "sim900.h"
 
+//Note: response[1000] array contains all the response of GSM AT Commands 
 
 // GSM/GPRS Configurations and Think Spwak Cloud Configurations Settings
 
@@ -14,7 +15,8 @@ char password[]="";
 
 String getStr="";
 
-char IP_address[]="184.106.153.149";   //Think Speak Server IP Address
+//char IP_address[]="184.106.153.149";   //Think Speak Server IP Address
+char IP_address[]="api.thingspeak.com";   //URL
 char port[]= "80";                      // PORT Connected on 
 
 boolean sim900Status = false;
@@ -118,10 +120,10 @@ int8_t sim900_GPRS::sendATcommand2(String ATcommand, char* expected_answer1,char
 {
   
     uint8_t x=0,  answer=0;
-   char response[100];
+   char response[200];
     unsigned long previous;
 
-    memset(response, '\0', 100);    // Initialize the string
+    memset(response, '\0', 200);    // Initialize the string
 
     delay(100);
 
@@ -165,10 +167,10 @@ int8_t sim900_GPRS::sendATcommand3(String ATcommand, char* expected_answer1,char
 {
 
     uint8_t x=0,  answer=0;
-    char response[100];
+    char response[1000];
     unsigned long previous;
 
-    memset(response, '\0', 100);    // Initialize the string
+    memset(response, '\0', 500);    // Initialize the string
 
     delay(100);
 
@@ -212,7 +214,7 @@ int8_t sim900_GPRS::sendATcommand3(String ATcommand, char* expected_answer1,char
 
 /*****************************************************************************************************************************************************/
 
-void sim900_GPRS::updateThinkSpeak(String channel_apiKey,uint8_t id1,uint8_t id2,uint8_t id3,uint8_t id4,float field1=0,float field2=0,float field3=0,float field4=0)  // ,float field5=0,float field6=0,float field7=0,float field8=0)
+void sim900_GPRS::updateThinkSpeak(String channel_apiKey,uint8_t id1,uint8_t id2,uint8_t id3,uint8_t id4,float field1=0,float field2=0,float field3=0,float field4=0,float field5=0,float field6=0,float field7=0,float field8=0)
 {
   
    if(sim900Status==true)
@@ -258,7 +260,7 @@ void sim900_GPRS::updateThinkSpeak(String channel_apiKey,uint8_t id1,uint8_t id2
 
                          Serial.println("\n Send some data to TCP Socket............");
                          getStr="GET /update?api_key="+ channel_apiKey +"&field"+ id1 +"=" +field1 + "&field"+ id2 + "=" +field2 +"&field" +id3 + "=" +field3 +"&field" +id4 +"=" +field4 
-                                                      /*+"&field5="+ field5  +"&field6="+ field6 +"&field7="+ field7 +"&field8=" + field8*/ + "\r\n\r\n";      //TCP packet to send GET Request on https (Think Speak)
+                                +"&field5="+ field5  +"&field6="+ field6 +"&field7="+ field7 +"&field8=" + field8 + "\r\n\r\n";      //TCP packet to send GET Request on https (Think Speak)
                           
                           String sendcmd = "AT+CIPSEND="+ String(getStr.length());
                           if (sendATcommand2(sendcmd, ">", "ERROR", 10000) == 1)    
@@ -286,7 +288,7 @@ void sim900_GPRS::updateThinkSpeak(String channel_apiKey,uint8_t id1,uint8_t id2
        }
    }
     Serial.println("Shutting down the connection.........");
-    sendATcommand2("AT+CIPSHUT", "OK", "ERROR", 10000);
+    sendATcommand2("AT+CIPSHUT", "OK", "ERROR", 5000);
     delay(5000);
 }
 
