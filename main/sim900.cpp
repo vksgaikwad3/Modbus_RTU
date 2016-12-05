@@ -79,10 +79,10 @@ int8_t sim900_GPRS::sendATcommand(char* ATcommand, char* expected_answer, unsign
 {
 
     uint8_t x=0,  answer=0;
-    char response[100];         //Response buffer
+    char response[1000];         //Response buffer
     unsigned long previous;
 
-    memset(response, '\0', 100);    // Initialize the string
+    memset(response, '\0', 500);    // Initialize the string
 
     delay(100);
 
@@ -234,6 +234,7 @@ void sim900_GPRS::updateThinkSpeak(String channel_apiKey,uint8_t id1,uint8_t id2
           while(sendATcommand("AT+CIPSTATUS", "START", 500)  == 0 );
           delay(2000);
           // Brings Up Wireless Connection
+          sendATcommand("AT+CSQ", "OK", 1000);
           if (sendATcommand2("AT+CIICR", "OK", "ERROR", 30000) == 1)
           {    
               //delay(2000);
@@ -282,11 +283,16 @@ void sim900_GPRS::updateThinkSpeak(String channel_apiKey,uint8_t id1,uint8_t id2
                       Serial.println("Error opening the connection");
                        
                   }  
-              }
+              }         //AT+CIFSR
+          }     //AT+CIICR Bringup connection
+          else { Serial.println("GPRS Bringup Failed , Try Again!!!");
+                sendATcommand("AT+CSQ=?", "OK", 1000);
+                while(sendATcommand2("AT+CIPSHUT", "OK", "ERROR", 10000) != 1);
+                delay(5000); 
           }
-        }
-       }
-   }
+        }         //AT+CSTT APN,PSW,PORT setting
+       }          //AT+CIPMUX =0  Single-connection mode
+   }              //if(sim900Status==true)
     Serial.println("Shutting down the connection.........");
     sendATcommand2("AT+CIPSHUT", "OK", "ERROR", 5000);
     delay(5000);
@@ -404,5 +410,59 @@ float sim900_GPRS:: hextofloat(uint16_t hByte, uint16_t lByte)
 
   return floatVal; 
 }
+/****************************************************************************************************************************************************************/
+void sim900_GPRS::httpInit()
+{
+  
+  sendATcommand("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"","OK",1000);      //set Connection type as GPRS
+  sendATcommand("AT+SAPBR=3,1,\"APN\",\"airtelgprs.com\"","OK",1000); //Set APN of SIM Card
+  sendATcommand("AT+SAPBR= 1,1","OK",1000);     //Enable GPRS if ERROR, its alread Enable
+  sendATcommand("AT+SAPBR=2,1","OK",500);     //Get the IP Address 
+  
+}
 
+/****************************************************************************************************************************************************************/
+boolean sim900_GPRS::httpGETupdate(String channelKey,float field1,float field2,float field3,float field4,float field5,float field6,float field7,float field8)
+{
+
+  String serverURL = "";
+  
+  sendATcommand("AT+HTTPINIT","OK",500);
+  sendATcommand("AT+HTTPPARA=\"CID\",\"1\"","OK",500);    //Start by setting up the HTTP bearer profile identifier
+
+  serverURL += "AT+HTTPPARA=";
+  serverURL += "\"URL\"";
+  serverURL += ",";
+ //serverURL += "\"http://smartnub.com/raspberry/api.php?serviceName=test_api&field1=";
+  serverURL += "\"http://api.thingspeak.com/update?api_key=";
+  serverURL += channelKey;
+  serverURL += "&field1=" ;
+  serverURL += field1;
+  serverURL += "&field2=";
+  serverURL += field2;
+  serverURL += "&field3=";
+  serverURL += field3;
+  serverURL += "&field4=";
+  serverURL += field4;
+  serverURL += "&field5=";
+  serverURL += field5;
+  serverURL += "&field6=";
+  serverURL += field6;
+  serverURL += "&field7=";
+  serverURL += field7;
+  serverURL += "&field8=";
+  serverURL += field8;
+  serverURL += "\"";
+  
+  //Serial.println("\"" + serverURL + "\"");
+
+  Serial.println(serverURL.length());
+  sendATcommand(serverURL.c_str(),"OK",7000);
+   
+ //Serial.println("HTTP READ");
+ sendATcommand("AT+HTTPACTION= 0","OK",7000);   //Set GET Mode
+ delay(5000);Serial.println("");
+ Serial.println(" ***************************** DONE ***************************");
+
+}
 
