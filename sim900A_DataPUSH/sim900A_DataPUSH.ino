@@ -11,8 +11,8 @@
 char aux_str[100];
     
 char pin[]="";
-char apn[]="imis/internet";
-//char apn[]="TATA.DOCOMO.INTERNET";
+//char apn[]="imis/internet";
+char apn[]="airtelgprs.com";    
 char user_name[]="";
 char password[]="";
 //char IP_address[]="184.106.153.149";   //Think Speak Server IP Address
