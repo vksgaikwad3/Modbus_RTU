@@ -6,11 +6,16 @@
 
 File myFile;
 
+ 
+volatile const int chipSelect  = 10;
 void isSDCardCheck(String filename);
 void readSDCard(String filename);
-boolean writetoSDCard (String filename,byte mode,int srNo,int deviceID,float battery_Temp,float milk_Temp,float auxillary_Temp,float battery_Volt,float ac_Volt,float compressor_Current,float pump_Current,
-                       boolean charg_pump_Relay,boolean condensor_Relay,boolean compressor_Relay,boolean inverter_Relay,boolean agitator_Relay,boolean tank_Relay,boolean shiva_Relay,boolean discharge_pump_Relay,float compressor_run_Hour );
+boolean writetoSDCard (String filename,byte mode,String logTime,int deviceID,float battery_Temp,float milk_Temp,float auxillary_Temp,float battery_Volt,float ac_Volt,float compressor_Current,float pump_Current,
+                       boolean charg_pump_Relay,boolean condensor_Relay,boolean compressor_Relay,boolean inverter_Relay,boolean agitator_Relay,boolean tank_Relay,boolean shiva_Relay,boolean discharge_pump_Relay,float compressor_run_Hour,
+                       float lineVolts,float lineCurrent,float deviceVolts,float deviceCurrent,float power,float powerConsump,float deviceRunHr,float powerAvailable);
 
+ 
+boolean isSDCardexist(String filename);
 
 
 
@@ -18,9 +23,12 @@ void isSDCardCheck(String filename)
 {
   
   Serial.print("Initializing SD card...");
-
-  while (SD.begin(10) ==0 ) {
-    Serial.println("initialization failed!  NO SD CARD FOUND :( InsertCorrectly !!! ");
+  Serial.print("Chip Select Status :");Serial.println(digitalRead(chipSelect));
+  delay(1000);
+  while (SD.begin(chipSelect) == 0 ) {
+    Serial.println("initialization failed!  NO SD CARD FOUND :( InsertCorrectly !!! "); delay(100);
+    Serial.print("Chip Select Status IN :");Serial.println(digitalRead(chipSelect));
+    
     continue;
     //return;
   }
@@ -34,9 +42,21 @@ void isSDCardCheck(String filename)
     if(myFile.size() <= 0)    //check Size of file is zero or not
     {
      Serial.println("Start Writting Tabs !!! .");
-     myFile.println("SrNo.,DeviceID,BatteryTemp(oC),MilkTemp(oC),AuxillaryTemp(oC),BatteryVoltage(VDC),ACVoltage(ACV),CompresorCurrent(A),PumpCurrent(A),ChargingPumpRelay,CondensorRelay,CompressorRelay,InverterRelay,AgitatorRelay,TankRelay,ShivaRelay,Disch.PumpRelay,CompressorRunHours ");
+     myFile.println("Time.,DeviceID,BatteryTemp(oC),MilkTemp(oC),AuxillaryTemp(oC),BatteryVoltage(VDC),ACVoltage(ACV),CompresorCurrent(A),PumpCurrent(A),ChargingPumpRelay,CondensorRelay,CompressorRelay,InverterRelay,AgitatorRelay,TankRelay,ShivaRelay,Disch.PumpRelay,CompressorRunHours ");
+    
      myFile.close();
     }
+//    else if(myFile.size() > 0 )
+//    {
+//      Serial.println("In a LOOOP()....Already Data present in SD Card. Appending the Data to .CSV file!!!");
+//      if(data.length() > 0)
+//      {
+//        myFile.println(data);
+//      }
+//      Serial.println("No DATA in Buffer ....");
+//      Serial.print("Chip Select Status in DATA BUF :");Serial.println(digitalRead(chipSelect));
+//
+//    }
     
     //SD.remove("chiller.csv");
   } 
@@ -54,24 +74,34 @@ void isSDCardCheck(String filename)
   while(myFile != 1)
    {
     myFile = SD.open(filename, FILE_WRITE);
-    Serial.println("Trying to OPEN File and Create ");
+    Serial.println("Trying to OPEN  and Create file ");
     continue;
    }
     Serial.print("IN File Status:");Serial.println(myFile);
     
     delay(1000);
     Serial.print("STATE:");Serial.println(myFile);
-    //if(myFile.size() <= 0)        //Check if Data is available or not
-    //{
+    if(myFile.size() <= 0)        //Check if Data is available or not
+    {
       Serial.print("File Size:");Serial.println(myFile.size());
       Serial.print("Create Tabs in .csv...");
-      myFile.println("SrNo.,DeviceID,BatteryTemp(oC),MilkTemp(oC),AuxillaryTemp(oC),BatteryVoltage(VDC),ACVoltage(ACV),CompresorCurrent(A),PumpCurrent(A),ChargingPumpRelay,CondensorRelay,CompressorRelay,InverterRelay,AgitatorRelay,TankRelay,ShivaRelay,Disch.PumpRelay,CompressorRunHours ");
+      myFile.println("Time,DeviceID,BatteryTemp(oC),MilkTemp(oC),AuxillaryTemp(oC),BatteryVoltage(VDC),ACVoltage(ACV),CompresorCurrent(A),PumpCurrent(A),ChargingPumpRelay,CondensorRelay,CompressorRelay,InverterRelay,AgitatorRelay,TankRelay,ShivaRelay,Disch.PumpRelay,CompressorRunHours,\tDeviceID,LineVolts[VAC],LineCurrent[A],DeviceVolts[VDC],DeviceCurrent[A],Power[W],PowerConsump[kWh],DeviceRunHr[Hrs],PowerAvailable[W]");
       myFile.close();
       Serial.println("Write Complete .");
-   } 
-
+   }
+//   else if(myFile.size() > 0 )
+//    {
+//      Serial.println("In a LOOOP()....,,,Already Data present in SD Card. Appending the Data to .CSV file!!!");
+//       if(data.length() > 0)
+//       {
+//          myFile.println(data);
+//       }
+//       Serial.println(" Data Buffer is Empty ...");
+//    }
+     
+ }
 /******* Reading .CSV File ******************/ 
-  readSDCard(filename);
+//  readSDCard(filename);
 
 }
 
@@ -94,16 +124,22 @@ void readSDCard(String filename)
     myFile.close();
     Serial.println("*******************File Closed ******************************");
   } else {
-    // if the file didn't open, print an error:
-    myFile = SD.open(filename, FILE_WRITE);  
+    // if the file didn't open, print an error,and try to open:
+    myFile = SD.open(filename, FILE_WRITE);
     while(myFile !=1)
     {
-      myFile = SD.open(filename);    // Try to Open File
       Serial.println("error opening and Reading chiller.csv, ... Trying to Open file");
+      myFile = SD.open(filename);    // Try to Open File
       Serial.println(myFile);
-      //continue;
+      continue;
+    }
+    while (myFile.available()) {      //Read All the Contents from File
+      Serial.write(myFile.read());
       
     }
+    Serial.println("Read Complete in 2nd try...");
+    // close the file:
+    myFile.close();
     
    }
 }
@@ -111,23 +147,21 @@ void readSDCard(String filename)
 
 /********************** Write Data to SD Card  ********************************/
 
-boolean writetoSDCard (String filename,byte mode,int srNo,int deviceID,float battery_Temp,float milk_Temp,float auxillary_Temp,float battery_Volt,float ac_Volt,float compressor_Current,float pump_Current,
-                       boolean charg_pump_Relay,boolean condensor_Relay,boolean compressor_Relay,boolean inverter_Relay,boolean agitator_Relay,boolean tank_Relay,boolean shiva_Relay,boolean discharge_pump_Relay,float compressor_run_Hour )
+boolean writetoSDCard (String filename,byte mode,String logTime,int deviceID1,float battery_Temp,float milk_Temp,float auxillary_Temp,float battery_Volt,float ac_Volt,float compressor_Current,float pump_Current,
+                       boolean charg_pump_Relay,boolean condensor_Relay,boolean compressor_Relay,boolean inverter_Relay,boolean agitator_Relay,boolean tank_Relay,boolean shiva_Relay,boolean discharge_pump_Relay,float compressor_run_Hour,
+                       int deviceID2,float lineVolts,float lineCurrent,float deviceVolts,float deviceCurrent,float power,float powerConsump,float deviceRunHr,float powerAvailable)
 {
-  String data ;
   //volatile int srNo = 1;
+  String data ="" ;
+
 
   
   myFile = SD.open(filename, mode); // FILE_WRITE
 
   // if the file opened okay, write to it:
-  if (myFile) {
-    Serial.print("Write data in MilkChiller.csv...");
-    //data = "1,1," + battery_Temp + "," + milk_Temp + "," + auxillary_Temp + "," + battery_Volt + "," + ac_Volt +"," + compressor_Current +"," + pump_Current +","; 
-    //+ charg_pump_Relay +"," + condensor_Relay +"," + compressor_Relay + "," + inverter_Relay +"," + agitator_Relay +"," + tank_Relay + "," + shiva_Relay +"," + discharge_pump_Relay +"," + compressor_run_Hour + """;
-    data +=  srNo;
+    data += logTime;
     data += ",";
-    data += deviceID;
+    data += deviceID1;
     data += "," ;
     data += battery_Temp;
     data += ",";
@@ -160,27 +194,94 @@ boolean writetoSDCard (String filename,byte mode,int srNo,int deviceID,float bat
     data += discharge_pump_Relay ;
     data += "," ;
     data += compressor_run_Hour;
+    data += "\t\t";
+    data += deviceID2;
+    data += ",";
+    data += lineVolts;
+    data += ",";
+    data += deviceVolts;
+    data += ",";
+    data += lineCurrent;
+    data += ",";
+    data += deviceCurrent;
+    data += ",";
+    data += power;
+    data += ",";
+    data += powerConsump;
+    data += ",";
+    data += deviceRunHr;
+    data += ",";
+    data += powerAvailable;
      
     //srNo++;
-    Serial.println(data);
-    delay(2000);
-    myFile.println(data);
-    
-    myFile.close();
-    
-    Serial.println("Write Complete .");
-    return true;
-  } 
+  Serial.print("File Status:");Serial.println(myFile);
+  if(myFile)
+  {  
+     Serial.println(data);
+     delay(1000);
+     myFile.println(data);      //file is open and write to file
+     myFile.close();
+     Serial.println("Write Complete .");
+  }
+  
   else {
     // if the file didn't open, print an error:
-    Serial.println("error opening chiller.csv");
+    Serial.println("error in opening .CSV... SD Card NOT  FOUND !!!!!");
+
+   myFile = SD.open(filename, FILE_WRITE);
+
+  // if the file opened okay, write to it:
+  while(myFile != 1)
+   {
+    myFile = SD.open(filename, FILE_WRITE);
+    Serial.println("Trying to OPEN  and Create file ");
+    continue;
+   }
+    Serial.print("IN File Status:");Serial.println(myFile);
+    delay(1000);
+    //Serial.print("STATE:");Serial.println(myFile);
+    myFile.println(data);
+    Serial.println(data);
     
+    myFile.close(); delay(1000);
+    
+    Serial.println("Write Complete in Next Attempt ....");
   }
 
-  return false;
+  //isSDCardCheck(filename);
+  return myFile;
 }
 
 
-
+//boolean isSDCardexist(String filename)
+//{
+//  while (SD.begin(chipSelect) ==0 ) {
+//    Serial.println("initialization failed!  NO SD CARD FOUND :( InsertCorrectly !!! ");
+//    continue;
+//    //return;
+//  }
+//  Serial.println("initialization done.");
+//
+///*** Checking if File Exist or not *******************/
+//
+//  if (SD.exists(filename)) {
+//    Serial.println("chiller.csv exists.");
+//    myFile = SD.open(filename, FILE_WRITE);
+//    
+//    Serial.print("Write data in .csv... !!!");
+//    
+//    Serial.println(data);
+//    //delay(2000);
+//    myFile.println(data);
+//    
+//    myFile.close();
+//    Serial.println("Write Complete .");
+//    
+//    return true;
+//  }
+//
+//  Serial.println("CARD NOT FOUND ....");
+//  return false;  
+//}
 
 #endif
