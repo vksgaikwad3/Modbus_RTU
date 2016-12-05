@@ -1,4 +1,7 @@
-/* Description : Read all the Data from MODBUS Slaves.
+/* Author : Vikas Gaikwad
+ * Date : 10 Nov. 2016
+ * 
+ *  Description : Read all the Data from MODBUS Slaves.
    Hardware Connections : Arduino MEGA SERIAL2(Hardware Serial) 
                           RX2 -----> R0 (MAX485 Chip Adapter)
                           TX2 -----> DI (MAX485 Chip Adapter)
@@ -6,7 +9,7 @@
    MODBUS  Device Settings : 
 
    SLAVE 1 : Milk Chiller Panel 
-   Slave ID : 1, Baud Rate : 9600, Parity : NONE, Stop bit : 1
+   Slave ID : 1, Baud Rate : 9600, Parity : NONE, Stop bit : 1    
 
    SLAVE 2 : Energy Meter
    Slave ID : 2, Baud Rate: 9600, Parity :None, Stop bit : 1
@@ -24,12 +27,19 @@
 #include <SimpleModbusMaster.h>
 #include <SPI.h>
 #include <SD.h>
+#include <Wire.h>
+#include "RTClib.h"
 #include "sim900.h"     
 #include "serverConfg.h"  
 #include "sdcardConfig.h"        
 
-//File myFile1;
+String getlogTime();
+
+
 sim900_GPRS myGateway;    // Gateway object
+RTC_DS3231 rtc;           // RTC instance
+
+
 
 #define baud 9600
 #define timeout 1000
@@ -60,15 +70,26 @@ enum
 
 Packet packets[TOTAL_NO_OF_PACKETS];
 
-int regs[TOTAL_NO_OF_REGISTERS];     // All the Modbus Resisters gets stored here in buffer.
+int regs[TOTAL_NO_OF_REGISTERS];     // All the Data from Modbus Resisters gets stored here in this buffer.
 
 void setup()
 {
   Serial.begin(9600);
   Serial2.begin(9600);
-  //READ_INPUT_REGISTERS
-  //READ_HOLDING_REGISTERS
-   //MILK CHILLER PACKET 
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, lets set the time!");
+    // following line sets the RTC to the date & time this sketch was compiled
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
+  
    modbus_construct(&packets[PACKET1], 1, READ_HOLDING_REGISTERS, 4, 17, 0);  // Control Panel Resisters [40005 - 40021]
   
    // ENERGY METER PACKET
@@ -91,22 +112,34 @@ void setup()
   //pinMode(LED, OUTPUT);
 
   // Setup GSM Module 
-  Serial1.begin(9600);   // To connect SIM900A and send AT Commands
-  myGateway.power_on();            // POWER ON GSM Module for communication 
-
+  Serial1.begin(9600);             // To connect SIM900A and send AT Commands
+  myGateway.power_on();           // POWER ON GSM Module for communication 
+  myGateway.httpInit();          //Initialize http connections (please change APN as per your Network Operator)
+  
 /************** SD Card Init/Startup Code ***********************/
  isSDCardCheck("chiller.csv");     //provide a File Name to Store log of ModBus Devices
-
+ pinMode(A12,OUTPUT);
+ digitalWrite(A12,LOW);
   
 }
 
 void loop()
-{
+{     
+  DateTime now = rtc.now();
+   //DateTime now = rtc.now();
   for(int i=0;i<200;i++)
   {
     modbus_update();
     delay(10);Serial.println(i);
   }
+//  if(now.second() == 30)
+//  { 
+//    Serial.println("RESET");
+//    asm volatile ("  jmp 0"); 
+//    //Reset the code
+//  }
+
+  digitalWrite(A12,HIGH);
  
   volatile float battery_Temp = regs[0]/10.0;
   volatile float milk_Temp = regs[1]/10.0;
@@ -146,7 +179,7 @@ void loop()
  
     // Energy Meter Readings 
   Serial.println("************ Energy Meter Readings ************* ");
-  /*
+ /* 
   Serial.print("Line Voltages[HB].: ");Serial.println(regs[17],HEX);
   Serial.print("Line Voltages[LB].: ");Serial.println(regs[18],HEX);
   Serial.print("Line Current [HB].: ");Serial.println(regs[19],HEX);
@@ -163,7 +196,7 @@ void loop()
   Serial.print("DEvice Run Hr [LB].: ");Serial.println(regs[30],HEX);
   Serial.print("Power Available Time [HB].: ");Serial.println(regs[31],HEX);
   Serial.print("Power Available Time [LB].: ");Serial.println(regs[32],HEX);
-  */
+ */ 
   delay(50);
   float lineVolts = myGateway.hextofloat(regs[17],regs[18]);
   float lineCurrent = myGateway.hextofloat(regs[19],regs[20]);
@@ -175,16 +208,13 @@ void loop()
   float powerAvailable = myGateway.hextofloat(regs[31],regs[32]);
 
 /* *********  Log Data to SD Card *********************************/
-  String data = "";
-  volatile int SrNo = 1;
-  //myFile1 = SD.open("chiller.csv", FILE_WRITE);
+ //String settime =  getTime();    //now.year();
 
- writetoSDCard ("chiller.csv",FILE_WRITE ,SrNo, 2, battery_Temp, milk_Temp, auxillary_Temp, battery_Volt, ac_Volt, compressor_Current, pump_Current,
-                 charg_pump_Relay, condensor_Relay, compressor_Relay, inverter_Relay, agitator_Relay,tank_Relay, shiva_Relay, discharge_pump_Relay,compressor_run_Hour );
+ writetoSDCard ("chiller.csv",FILE_WRITE ,getlogTime(), packets[PACKET1].id, battery_Temp, milk_Temp, auxillary_Temp, battery_Volt, ac_Volt, compressor_Current, pump_Current,
+                 charg_pump_Relay, condensor_Relay, compressor_Relay, inverter_Relay, agitator_Relay,tank_Relay, shiva_Relay, discharge_pump_Relay,compressor_run_Hour,
+                 packets[PACKET2].id,lineVolts, lineCurrent, deviceVolts, deviceCurrent, power, powerConsump, deviceRunHr, powerAvailable);
 
-  
-  SrNo++;
-  
+/*  
   float emarray[] = {lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable };
   for(int i=0;i<8;i++)
   {
@@ -196,50 +226,64 @@ void loop()
   delay(5000); 
   /******************** Milk Chiller Temp Data Uploading *****************************/
   int stime = millis();
-  myGateway.updateThinkSpeak(channel_apiKey[0],1,2,3,4,battery_Temp,milk_Temp,auxillary_Temp,battery_Volt,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);    //update Milk Chiller Channel 1 - 4 fields
+
+  myGateway.httpGETupdate(channel_apiKey[0],battery_Temp,milk_Temp,auxillary_Temp,battery_Volt,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);
+  
+  //myGateway.updateThinkSpeak(channel_apiKey[0],1,2,3,4,battery_Temp,milk_Temp,auxillary_Temp,battery_Volt,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);    //update Milk Chiller Channel 1 - 4 fields
   Serial.print("Chiller 1-4 Time Taken :");Serial.println(millis() - stime );
   delay(200);
-  //int s1time = millis();
-  //myGateway.updateThinkSpeak(channel_apiKey[0],5,6,7,8,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);    //update Milk Chiller Channel field 5 -8
-  //Serial.print("Chiller 5 -8 Time Taken :");Serial.println(millis() - s1time );
-  //delay(200);
-
- /****************** Milk Chiller Relays Data Uploading ***************************/ 
-  int s2time = millis();
-  //myGateway.updateMilkChillerRelays(channel_apiKey[1],charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay );   // pass the parameters of milkChiller Relay fields 1 - 4
   
-  myGateway.updateThinkSpeak(channel_apiKey[1],1,2,3,4,charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 1 -4
+ /****************** Milk Chiller Relays Data Uploading ***************************/ 
+/* writetoSDCard ("chiller.csv",FILE_WRITE ,getlogTime(), packets[PACKET1].id, battery_Temp, milk_Temp, auxillary_Temp, battery_Volt, ac_Volt, compressor_Current, pump_Current,
+                 charg_pump_Relay, condensor_Relay, compressor_Relay, inverter_Relay, agitator_Relay,tank_Relay, shiva_Relay, discharge_pump_Relay,compressor_run_Hour );
+*/
+  int s2time = millis();
+  
+  myGateway.httpGETupdate(channel_apiKey[1],charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 1 -4
+  
+  //myGateway.updateThinkSpeak(channel_apiKey[1],1,2,3,4,charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 1 -4
   Serial.print("Chiller Relays 1-8 Time Taken :");Serial.println(millis() - s2time );
   delay(200);
  
-  //int s3time = millis();
-  //myGateway.updateThinkSpeak(channel_apiKey[1],5,6,7,8,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 5 - 8
-  //Serial.print("Chiller Relays 1-8 Time Taken :");Serial.println(millis() - s3time );
-  //delay(200);
-  
+ 
 /*********************** Energy Meter Uploaing ****************************************/  
+/*  writetoSDCard ("chiller.csv",FILE_WRITE ,getlogTime(), packets[PACKET1].id, battery_Temp, milk_Temp, auxillary_Temp, battery_Volt, ac_Volt, compressor_Current, pump_Current,
+                 charg_pump_Relay, condensor_Relay, compressor_Relay, inverter_Relay, agitator_Relay,tank_Relay, shiva_Relay, discharge_pump_Relay,compressor_run_Hour );
+*/
   int s4time = millis();
-  myGateway.updateThinkSpeak(channel_apiKey[2],1,2,3,4,lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable);                  //update Energy meter 1 - 4 fields
+  
+  myGateway.httpGETupdate(channel_apiKey[2],lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable);                  //update Energy meter 1 - 4 fields
+  
+  //myGateway.updateThinkSpeak(channel_apiKey[2],1,2,3,4,lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable);                  //update Energy meter 1 - 4 fields
   Serial.print("Energy Meter 1-4 Time Taken :");Serial.println(millis() - s4time );
+  delay(2000);
+ 
+  Serial.println("**** done ****");
+  digitalWrite(A12,LOW);
   delay(200);
   
- // int s5time = millis();
- // myGateway.updateThinkSpeak(channel_apiKey[2],5,6,7,8,power,powerConsump/1000,deviceRunHr,powerAvailable);               // Energy Meter 5 - 8 fields
- // Serial.print("Energy Meter 5 - 8 Time Taken :");Serial.println(millis() - s5time );
+}
 
- 
-    //myGateway.updateThinkSpeak(channel_apiKey[2],1,2,3,4,lineVolts,lineCurrent,deviceVolts,deviceCurrent);                  //update Energy meter 1 - 4 fields  
-  //  myGateway.updateThinkSpeak(channel_apiKey[0],1,2,3,4,100.79,20.70,30.20,440.40,4551.1545,87785.166,98544.4661,444551.1541);
- //   delay(1000);
-    //myGateway.updateThinkSpeak(channel_apiKey[0],5,6,7,8,99999.1453,123456.4463,448454,763313.046);                  //update Energy meter 1 - 4 fields  
-    //delay(500);
-    
-   //myGateway.updateThinkSpeak(channel_apiKey[2],5,6,7,8,power,powerConsump/1000,deviceRunHr,powerAvailable);                    //update Energy meter 5 - 8 fields
-  //myGateway.updateThinkSpeak(channel_apiKey[2],5,6,7,8,41.1,912.24,901.14,9999);                                                //update Energy meter 5 - 8 fields
+String getlogTime()
+{   
+   DateTime now = rtc.now();
+   String logTime ; 
+      
+   logTime += now.day();
+   logTime += "/";
+   logTime += now.month();
+   logTime += "/";
+   logTime += now.year();
+   logTime += "@";
+   logTime += now.hour();
+   logTime += ":";
+   logTime += now.minute();
+   logTime += ":";
+   logTime += now.second();
    
-  Serial.println("**** done ****");
-  delay(200);
- 
+   //Serial.print("Time:");Serial.println(logTime);
+   //delay(2000);
+   return logTime;
 }
 
 
