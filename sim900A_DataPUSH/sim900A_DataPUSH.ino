@@ -17,6 +17,7 @@ char user_name[]="";
 char password[]="";
 //char IP_address[]="184.106.153.149";   //Think Speak Server IP Address
 char IP_address[]="api.thingspeak.com";   //URL
+char ubidots_url[] = "things.ubidots.com";
 
 char port[]="80";                      // PORT Connected on 
 
@@ -64,8 +65,8 @@ void loop() {
  
   Serial.println(tempSensor);
   
-  updateThinkSpeak(tempSensor,batteryTemp,AuxTemp) ;      //Send to Think Speak 
-
+  //updateThinkSpeak(tempSensor,batteryTemp,AuxTemp) ;      //Send to Think Speak 
+  updateThinkSpeak("586d410d76254216d82f3cee","07p6khoa3RZ7MhcwOSPyzXOlS2a1HZ",tempSensor);
   delay(1000);  
   
 // put your main code here, to run repeatedly:
@@ -98,7 +99,7 @@ void power_on(){
     // checks if the module is started
     answer = sendATcommand("AT", "OK", 2000);
     if (answer == 0)
-    {
+    {   Serial.println("SIM ON");
         // power on pulse
 //       digitalWrite(relay,HIGH);
 //        delay(3000);
@@ -134,10 +135,10 @@ void power_on(){
 int8_t sendATcommand(char* ATcommand, char* expected_answer, unsigned int timeout){
 
     uint8_t x=0,  answer=0;
-    char response[100];         //Response buffer
+    char response[3000];         //Response buffer
     unsigned long previous;
 
-    memset(response, '\0', 100);    // Initialize the string
+    memset(response, '\0', 3000);    // Initialize the string
 
     delay(100);
 
@@ -173,10 +174,10 @@ int8_t sendATcommand(char* ATcommand, char* expected_answer, unsigned int timeou
 int8_t sendATcommand2(String ATcommand, char* expected_answer1,char* expected_answer2, unsigned int timeout){
 
     uint8_t x=0,  answer=0;
-   char response[100];
+   char response[3000];
     unsigned long previous;
 
-    memset(response, '\0', 100);    // Initialize the string
+    memset(response, '\0', 3000);    // Initialize the string
 
     delay(100);
 
@@ -216,10 +217,10 @@ Serial.println(ATcommand);
 int8_t sendATcommand3(String ATcommand, char* expected_answer1,char* expected_answer2,char*expected_answer3, unsigned int timeout){
 
     uint8_t x=0,  answer=0;
-    char response[100];
+    char response[3000];
     unsigned long previous;
 
-    memset(response, '\0', 100);    // Initialize the string
+    memset(response, '\0', 3000);    // Initialize the string
 
     delay(100);
 
@@ -261,8 +262,10 @@ int8_t sendATcommand3(String ATcommand, char* expected_answer1,char* expected_an
     return answer;
 }
 
-void updateThinkSpeak(int field1,int field2,int field3)
+//void updateThinkSpeak(int field1,int field2,int field3)
+void updateThinkSpeak(String VID,String token,float no)
 {
+  
    if(sim900Status==true)
    {  // Selects Single-connection mode
       if (sendATcommand2("AT+CIPMUX=0", "OK","ERROR", 1000) == 1)      // CIMPUX=0 is already set in Single-connection mode
@@ -297,7 +300,7 @@ void updateThinkSpeak(int field1,int field2,int field3)
                  Serial.println("Opening TCP");
                  //  aux_str="AT+CIPSTART=\"TCP\",\"184.106.153.149\",\"80\"";
                  //  sendATcommand2(aux_str, "CONNECT OK", "CONNECT FAIL", 30000);
-                 snprintf(aux_str, sizeof(aux_str), "AT+CIPSTART=\"TCP\",\"%s\",\"%s\"", IP_address, port);
+                 snprintf(aux_str, sizeof(aux_str), "AT+CIPSTART=\"TCP\",\"%s\",\"%s\"",ubidots_url, port); //IP_address  
                  // snprintf(aux_str, sizeof(aux_str), "AT+CIPSTART=\"TCP\",\"%s\",\"%s\"", thethingsiOserver,port);  // thethings.iO Server   
                 // Opens a TCP socket
                  if (sendATcommand2(aux_str, "CONNECT OK", "CONNECT FAIL", 30000) == 1)
@@ -305,7 +308,7 @@ void updateThinkSpeak(int field1,int field2,int field3)
                          Serial.println("Connected");
 
                          Serial.println("\n Send some data to TCP Socket............");
-                          getStr="GET /update?api_key="+ apiKey +"&field1=" +field1 + "&field2=" +field2 +"&field3=" +field3 + "\r\n\r\n";   //TCP packet to send GET Request on https (Think Speak)
+                         // getStr="GET /update?api_key="+ apiKey +"&field1=" +field1 + "&field2=" +field2 +"&field3=" +field3 + "\r\n\r\n";   //TCP packet to send GET Request on https (Think Speak)
                           // getStr= "GET /raspberry/api.php?serviceName=test_api&field1=123\r\n\r\n";  //+ "\r\n\r\n";   //Smartnub packet request
                           //String value = "{"values": [ { "key": "fun","value": "5000" } ] }\";
                           //getStr="POST /v2/things/{{doAgkdNly8o29pusozJ-3mNnqET6dKKvcI4DmLVe-t4}}\" + value + "\r\n\r\n";   //thethingsIO request to write
@@ -316,7 +319,14 @@ void updateThinkSpeak(int field1,int field2,int field3)
                          // getStr += field1;
                          // getStr += "\r\n\r\n";
                           
-                          String sendcmd = "AT+CIPSEND="+ String(getStr.length());
+                         int num=0;
+                         String var = "{\"value\":"+ String(no) + "}";
+                         num = var.length();
+                         getStr = "POST /api/v1.6/variables/"+VID+"/values HTTP/1.1\nContent-Type: application/json\nContent-Length: "+String(num)+"\nX-Auth-Token: "+token+"\nHost: things.ubidots.com\n\n";
+                         getStr += var;
+                         getStr += "\r\n\r\n";                                  
+                         String sendcmd = "AT+CIPSEND="+ String(getStr.length());
+                          
                           if (sendATcommand2(sendcmd, ">", "ERROR", 10000) == 1)    
                             {
                               delay(100);
