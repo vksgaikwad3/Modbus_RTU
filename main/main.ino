@@ -49,7 +49,7 @@ RTC_DS3231 rtc;           // RTC instance
 #define TxEnablePin 2 
 
 #define LED 13
-const uint8_t ChipSelect = 10 ;   //SD Card ChipSelect pin. Dont Change
+const uint8_t ChipSelect = 53 ;   //SD Card ChipSelect pin. Dont Change
 
 
 #define TOTAL_NO_OF_REGISTERS 33        // Control Panel Resisters = 17 , Energy Meter Resisters = 16
@@ -74,6 +74,7 @@ int regs[TOTAL_NO_OF_REGISTERS];     // All the Data from Modbus Resisters gets 
 
 void setup()
 {
+  pinMode(ChipSelect,OUTPUT);
   Serial.begin(9600);
   Serial2.begin(9600);
   if (! rtc.begin()) {
@@ -114,7 +115,7 @@ void setup()
   // Setup GSM Module 
   Serial1.begin(9600);             // To connect SIM900A and send AT Commands
   myGateway.power_on();           // POWER ON GSM Module for communication 
-  myGateway.httpInit();          //Initialize http connections (please change APN as per your Network Operator)
+  //myGateway.httpInit();          //Initialize http connections (please change APN as per your Network Operator)
   
 /************** SD Card Init/Startup Code ***********************/
  isSDCardCheck("chiller.csv");     //provide a File Name to Store log of ModBus Devices
@@ -225,38 +226,39 @@ void loop()
   
   delay(5000); 
   /******************** Milk Chiller Temp Data Uploading *****************************/
-  int stime = millis();
-
-  myGateway.httpGETupdate(channel_apiKey[0],battery_Temp,milk_Temp,auxillary_Temp,battery_Volt,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);
+  //int stime = millis();
+  myGateway.sendATcommand("AT+CSQ", "OK", 1000);
+  //myGateway.httpGETupdate(channel_apiKey[0],battery_Temp,milk_Temp,auxillary_Temp,battery_Volt,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);
   
-  //myGateway.updateThinkSpeak(channel_apiKey[0],1,2,3,4,battery_Temp,milk_Temp,auxillary_Temp,battery_Volt,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);    //update Milk Chiller Channel 1 - 4 fields
-  Serial.print("Chiller 1-4 Time Taken :");Serial.println(millis() - stime );
-  delay(200);
+  myGateway.updateThinkSpeak(channel_apiKey[0],1,2,3,4,battery_Temp,milk_Temp,auxillary_Temp,battery_Volt,ac_Volt,compressor_Current,pump_Current,compressor_run_Hour);    //update Milk Chiller Channel 1 - 4 fields
+  //Serial.print("Chiller 1-4 Time Taken :");Serial.println(millis() - stime );
+  delay(4000);
   
  /****************** Milk Chiller Relays Data Uploading ***************************/ 
 /* writetoSDCard ("chiller.csv",FILE_WRITE ,getlogTime(), packets[PACKET1].id, battery_Temp, milk_Temp, auxillary_Temp, battery_Volt, ac_Volt, compressor_Current, pump_Current,
                  charg_pump_Relay, condensor_Relay, compressor_Relay, inverter_Relay, agitator_Relay,tank_Relay, shiva_Relay, discharge_pump_Relay,compressor_run_Hour );
 */
-  int s2time = millis();
+  //int s2time = millis();
+
+  myGateway.sendATcommand("AT+CSQ", "OK", 1000);
+  //myGateway.httpGETupdate(channel_apiKey[1],charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 1 -4
   
-  myGateway.httpGETupdate(channel_apiKey[1],charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 1 -4
-  
-  //myGateway.updateThinkSpeak(channel_apiKey[1],1,2,3,4,charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 1 -4
-  Serial.print("Chiller Relays 1-8 Time Taken :");Serial.println(millis() - s2time );
-  delay(200);
+  myGateway.updateThinkSpeak(channel_apiKey[1],1,2,3,4,charg_pump_Relay,condensor_Relay,compressor_Relay,inverter_Relay,agitator_Relay,tank_Relay,shiva_Relay,discharge_pump_Relay);    //update Milk Chiller Relays Channel field 1 -4
+  //Serial.print("Chiller Relays 1-8 Time Taken :");Serial.println(millis() - s2time );
+  delay(4000);
  
  
 /*********************** Energy Meter Uploaing ****************************************/  
 /*  writetoSDCard ("chiller.csv",FILE_WRITE ,getlogTime(), packets[PACKET1].id, battery_Temp, milk_Temp, auxillary_Temp, battery_Volt, ac_Volt, compressor_Current, pump_Current,
                  charg_pump_Relay, condensor_Relay, compressor_Relay, inverter_Relay, agitator_Relay,tank_Relay, shiva_Relay, discharge_pump_Relay,compressor_run_Hour );
 */
-  int s4time = millis();
+  //int s4time = millis();
+  myGateway.sendATcommand("AT+CSQ", "OK", 1000);
+ // myGateway.httpGETupdate(channel_apiKey[2],lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable);                  //update Energy meter 1 - 4 fields
   
-  myGateway.httpGETupdate(channel_apiKey[2],lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable);                  //update Energy meter 1 - 4 fields
-  
-  //myGateway.updateThinkSpeak(channel_apiKey[2],1,2,3,4,lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable);                  //update Energy meter 1 - 4 fields
-  Serial.print("Energy Meter 1-4 Time Taken :");Serial.println(millis() - s4time );
-  delay(2000);
+  myGateway.updateThinkSpeak(channel_apiKey[2],1,2,3,4,lineVolts,lineCurrent,deviceVolts,deviceCurrent,power,powerConsump/1000,deviceRunHr,powerAvailable);                  //update Energy meter 1 - 4 fields
+  //Serial.print("Energy Meter 1-4 Time Taken :");Serial.println(millis() - s4time );
+  delay(4000);
  
   Serial.println("**** done ****");
   digitalWrite(A12,LOW);

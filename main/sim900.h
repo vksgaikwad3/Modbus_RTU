@@ -3,13 +3,18 @@
 
 #include<Arduino.h>
 
+//600 --> NOT HTTP PDU
+//601 --> Network Error 
+//602 --> No Memory
+//603 --> DNS Error
+//604 --> Stack Busy
     
 
 // SIM900 GSM/GPRS class
 
 class sim900_GPRS
 {
-  public:
+  public: 
 
     sim900_GPRS();    //Constructer
     void power_on();  //Power on GSM method
